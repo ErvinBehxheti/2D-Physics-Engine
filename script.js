@@ -28,6 +28,22 @@ class Vector {
     return new Vector(this.x * n, this.y * n);
   }
 
+  unit() {
+    if (this.mag() === 0) {
+      return new Vector(0, 0);
+    } else {
+      return new Vector(this.x / this.mag(), this.y / this.mag());
+    }
+  }
+
+  static dot(v1, v2) {
+    return v1.x * v2.x + v1.y * v2.y;
+  }
+
+  normal() {
+    return new Vector(-this.y, this.x).unit();
+  }
+
   drawVec(start_x, start_y, n, color) {
     ctx.beginPath();
     ctx.moveTo(start_x, start_y);
@@ -39,8 +55,7 @@ class Vector {
 
 class Ball {
   constructor(x, y, r) {
-    this.x = x;
-    this.y = y;
+    this.pos = new Vector(x, y);
     this.r = r;
     this.vel = new Vector(0, 0);
     this.acc = new Vector(0, 0);
@@ -51,7 +66,7 @@ class Ball {
 
   drawBall() {
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.r, 0, 2 * Math.PI);
+    ctx.arc(this.pos.x, this.pos.y, this.r, 0, 2 * Math.PI);
     ctx.strokeStyle = "black";
     ctx.stroke();
     ctx.fillStyle = "red";
@@ -59,8 +74,8 @@ class Ball {
   }
 
   display() {
-    this.vel.drawVec(this.x, this.y, 10, "green");
-    this.acc.drawVec(this.x, this.y, 100, "blue");
+    this.vel.drawVec(this.pos.x, this.pos.y, 10, "green");
+    this.acc.drawVec(this.pos.x, this.pos.y, 100, "blue");
   }
 }
 
@@ -115,23 +130,54 @@ function keyControl(b) {
   if (!RIGHT && !LEFT) {
     b.acc.x = 0;
   }
+  b.acc = b.acc.unit().mult(b.acceleration);
   b.vel = b.vel.add(b.acc);
   b.vel = b.vel.mult(1 - friction);
-  b.x += b.vel.x;
-  b.y += b.vel.y;
+  b.pos = b.pos.add(b.vel);
+}
+
+function coll_det_bb(b1, b2) {
+  if (b1.r + b2.r >= b2.pos.subtr(b1.pos).mag()) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+function pen_res_bb(b1, b2) {
+  let dist = b1.pos.subtr(b2.pos);
+  let pen_depth = b1.r + b2.r - dist.mag();
+  let pen_res = dist.unit().mult(pen_depth / 2);
+  b1.pos = b1.pos.add(pen_res);
+  b2.pos = b2.pos.add(pen_res.mult(-1));
 }
 
 function mainLoop() {
   ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-  BALLZ.forEach((b) => {
+  BALLZ.forEach((b, index) => {
     b.drawBall();
     if (b.player) {
       keyControl(b);
+    }
+    for (let i = index + 1; i < BALLZ.length; i++) {
+      if (coll_det_bb(BALLZ[index], BALLZ[i])) {
+        pen_res_bb(BALLZ[index], BALLZ[i]);
+      }
     }
     b.display();
   });
   requestAnimationFrame(mainLoop);
 }
-let Ball1 = new Ball(100, 100, 50);
+let Ball1 = new Ball(200, 200, 30);
+let Ball2 = new Ball(300, 250, 40);
+let Ball3 = new Ball(400, 250, 40);
+let Ball4 = new Ball(500, 250, 40);
+let Ball5 = new Ball(600, 250, 40);
+let Ball6 = new Ball(700, 250, 40);
+let Ball7 = new Ball(800, 250, 40);
+let Ball8 = new Ball(100, 250, 40);
+let Ball9 = new Ball(300, 550, 40);
+let Ball10 = new Ball(300, 150, 40);
+
 Ball1.player = true;
 requestAnimationFrame(mainLoop);
