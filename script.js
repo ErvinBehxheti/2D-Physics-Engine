@@ -77,6 +77,13 @@ class Ball {
     this.vel.drawVec(this.pos.x, this.pos.y, 10, "green");
     this.acc.drawVec(this.pos.x, this.pos.y, 100, "blue");
   }
+
+  reposition() {
+    this.acc = this.acc.unit().mult(this.acceleration);
+    this.vel = this.vel.add(this.acc);
+    this.vel = this.vel.mult(1 - friction);
+    this.pos = this.pos.add(this.vel);
+  }
 }
 
 function keyControl(b) {
@@ -130,10 +137,6 @@ function keyControl(b) {
   if (!RIGHT && !LEFT) {
     b.acc.x = 0;
   }
-  b.acc = b.acc.unit().mult(b.acceleration);
-  b.vel = b.vel.add(b.acc);
-  b.vel = b.vel.mult(1 - friction);
-  b.pos = b.pos.add(b.vel);
 }
 
 function coll_det_bb(b1, b2) {
@@ -152,6 +155,21 @@ function pen_res_bb(b1, b2) {
   b2.pos = b2.pos.add(pen_res.mult(-1));
 }
 
+function coll_res_bb(b1, b2) {
+  let normal = b1.pos.subtr(b2.pos).unit();
+  let relVel = b1.vel.subtr(b2.vel);
+  let sepVel = Vector.dot(relVel, normal);
+  let new_sepVel = -sepVel;
+  let sepVelVec = normal.mult(new_sepVel);
+  b1.vel = b1.vel.add(sepVelVec);
+  b2.vel = b2.vel.add(sepVelVec.mult(-1));
+}
+
+function momentum_display() {
+  let momentum = Ball1.vel.add(Ball2.vel).mag();
+  ctx.fillText("Momentum" + momentum.toFixed(4), 500, 300);
+}
+
 function mainLoop() {
   ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
   BALLZ.forEach((b, index) => {
@@ -162,22 +180,17 @@ function mainLoop() {
     for (let i = index + 1; i < BALLZ.length; i++) {
       if (coll_det_bb(BALLZ[index], BALLZ[i])) {
         pen_res_bb(BALLZ[index], BALLZ[i]);
+        coll_res_bb(BALLZ[index], BALLZ[i]);
       }
     }
     b.display();
+    b.reposition();
   });
+  momentum_display();
   requestAnimationFrame(mainLoop);
 }
 let Ball1 = new Ball(200, 200, 30);
 let Ball2 = new Ball(300, 250, 40);
-let Ball3 = new Ball(400, 250, 40);
-let Ball4 = new Ball(500, 250, 40);
-let Ball5 = new Ball(600, 250, 40);
-let Ball6 = new Ball(700, 250, 40);
-let Ball7 = new Ball(800, 250, 40);
-let Ball8 = new Ball(100, 250, 40);
-let Ball9 = new Ball(300, 550, 40);
-let Ball10 = new Ball(300, 150, 40);
 
 Ball1.player = true;
 requestAnimationFrame(mainLoop);
