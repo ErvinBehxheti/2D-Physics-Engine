@@ -2,6 +2,7 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
 const BALLZ = [];
+const WALLZ = [];
 
 let LEFT, UP, RIGHT, DOWN;
 let friction = 0.1;
@@ -77,7 +78,7 @@ class Ball {
     ctx.strokeStyle = "black";
     ctx.stroke();
     ctx.fillStyle = "red";
-    ctx.fill();
+    // ctx.fill();
   }
 
   display() {
@@ -92,6 +93,26 @@ class Ball {
     this.vel = this.vel.add(this.acc);
     this.vel = this.vel.mult(1 - friction);
     this.pos = this.pos.add(this.vel);
+  }
+}
+
+class Wall {
+  constructor(x1, y1, x2, y2) {
+    this.start = new Vector(x1, y1);
+    this.end = new Vector(x2, y2);
+    WALLZ.push(this);
+  }
+
+  drawWall() {
+    ctx.beginPath();
+    ctx.moveTo(this.start.x, this.start.y);
+    ctx.lineTo(this.end.x, this.end.y);
+    ctx.strokeStyle = "black";
+    ctx.stroke();
+  }
+
+  wallUnit() {
+    return this.end.subtr(this.start).unit();
   }
 }
 
@@ -152,11 +173,34 @@ function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function closestPointBW(b1, w1) {
+  let ballToWallStart = w1.start.subtr(b1.pos);
+  if (Vector.dot(w1.wallUnit(), ballToWallStart) > 0) {
+    return w1.start;
+  }
+
+  let wallEndToBall = b1.pos.subtr(w1.end);
+  if (Vector.dot(w1.wallUnit(), wallEndToBall) > 0) {
+    return w1.end;
+  }
+
+  let closestDist = Vector.dot(w1.wallUnit(), ballToWallStart);
+  let closestVect = w1.wallUnit().mult(closestDist);
+  return w1.start.subtr(closestVect);
+}
+
 function coll_det_bb(b1, b2) {
   if (b1.r + b2.r >= b2.pos.subtr(b1.pos).mag()) {
     return true;
   } else {
     return false;
+  }
+}
+
+function coll_det_bw(b1, w1) {
+  let ballToClosest = closestPointBW(b1, w1).subtr(b1.pos);
+  if (ballToClosest.mag() <= b1.r) {
+    return true;
   }
 }
 
@@ -166,6 +210,11 @@ function pen_res_bb(b1, b2) {
   let pen_res = dist.unit().mult(pen_depth / (b1.inv_m + b2.inv_m));
   b1.pos = b1.pos.add(pen_res.mult(b1.inv_m));
   b2.pos = b2.pos.add(pen_res.mult(-b2.inv_m));
+}
+
+function pen_res_bw(b1, w1) {
+  let penVect = b1.pos.subtr(closestPointBW(b1, w1));
+  b1.pos = b1.pos.add(penVect.unit().mult(b1.r - penVect.mag()));
 }
 
 function coll_res_bb(b1, b2) {
@@ -182,6 +231,14 @@ function coll_res_bb(b1, b2) {
   b2.vel = b2.vel.add(impulseVec.mult(-b2.inv_m));
 }
 
+function coll_res_bw(b1, w1) {
+  let normal = b1.pos.subtr(closestPointBW(b1, w1)).unit();
+  let sepVel = Vector.dot(b1.vel, normal);
+  let new_sepVel = -sepVel * b1.elasticity;
+  let vsep_diff = sepVel - new_sepVel;
+  b1.vel = b1.vel.add(normal.mult(-vsep_diff));
+}
+
 function momentum_display() {
   let momentum = Ball1.vel.add(Ball2.vel).mag();
   ctx.fillText("Momentum" + momentum.toFixed(4), 500, 300);
@@ -194,6 +251,12 @@ function mainLoop() {
     if (b.player) {
       keyControl(b);
     }
+    WALLZ.forEach((w) => {
+      if (coll_det_bw(BALLZ[index], w)) {
+        pen_res_bw(BALLZ[index], w);
+        coll_res_bw(BALLZ[index], w)
+      }
+    })
     for (let i = index + 1; i < BALLZ.length; i++) {
       if (coll_det_bb(BALLZ[index], BALLZ[i])) {
         pen_res_bb(BALLZ[index], BALLZ[i]);
@@ -204,6 +267,11 @@ function mainLoop() {
     b.reposition();
   });
   // momentum_display();
+
+  WALLZ.forEach((wall) => {
+    wall.drawWall();
+  });
+
   requestAnimationFrame(mainLoop);
 }
 for (let i = 0; i < 10; i++) {
@@ -215,6 +283,12 @@ for (let i = 0; i < 10; i++) {
   );
   newBall.elasticity = randInt(0, 10) / 10;
 }
+
+let newWall = new Wall(200, 200, 400, 300);
+let edge1 = new Wall(0, 0, canvas.clientWidth, 0);
+let edge2 = new Wall(canvas.clientWidth, 0, canvas.clientWidth, canvas.clientHeight);
+let edge3 = new Wall(canvas.clientWidth, canvas.clientHeight, 0, canvas.clientHeight);
+let edge4 = new Wall(0, canvas.clientHeight, 0, 0)
 
 BALLZ[0].player = true;
 
