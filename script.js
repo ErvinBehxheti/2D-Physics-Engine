@@ -55,6 +55,28 @@ class Vector {
   }
 }
 
+class Matrix {
+  constructor(rows, cols) {
+    this.rows = rows;
+    this.cols = cols;
+    this.data = [];
+
+    for (let i = 0; i < this.rows; i++) {
+      this.data[i] = [];
+      for (let j = 0; j < this.cols; j++) {
+        this.data[i][j] = 0;
+      }
+    }
+  }
+
+  multiplyVec(vec) {
+    let result = new Vector(0, 0);
+    result.x = this.data[0][0] * vec.x + this.data[0][1] * vec.y;
+    result.y = this.data[1][0] * vec.x + this.data[1][1] * vec.y;
+    return result;
+  }
+}
+
 class Ball {
   constructor(x, y, r, m) {
     this.pos = new Vector(x, y);
@@ -96,16 +118,48 @@ class Ball {
     this.vel = this.vel.mult(1 - friction);
     this.pos = this.pos.add(this.vel);
   }
+
+  keyControl() {
+    if (LEFT) {
+      this.acc.x = -this.acceleration;
+    }
+    if (UP) {
+      this.acc.y = -this.acceleration;
+    }
+    if (RIGHT) {
+      this.acc.x = this.acceleration;
+    }
+    if (DOWN) {
+      this.acc.y = this.acceleration;
+    }
+    if (!LEFT && !RIGHT) {
+      this.acc.x = 0;
+    }
+    if (!UP && !DOWN) {
+      this.acc.y = 0;
+    }
+  }
 }
 
 class Wall {
   constructor(x1, y1, x2, y2) {
     this.start = new Vector(x1, y1);
     this.end = new Vector(x2, y2);
+    this.center = this.start.add(this.end).mult(0.5);
+    this.length = this.end.subtr(this.start).mag();
+    this.refStart = new Vector(x1, y1);
+    this.refEnd = new Vector(x2, y2);
+    this.refUnit = this.end.subtr(this.start).unit();
+    this.angVel = 0;
+    this.angle = 0;
     WALLZ.push(this);
   }
 
   drawWall() {
+    let rotMat = rotMx(this.angle);
+    let newDir = rotMat.multiplyVec(this.refUnit);
+    this.start = this.center.add(newDir.mult(-this.length / 2));
+    this.end = this.center.add(newDir.mult(this.length / 2));
     ctx.beginPath();
     ctx.moveTo(this.start.x, this.start.y);
     ctx.lineTo(this.end.x, this.end.y);
@@ -114,12 +168,26 @@ class Wall {
     ctx.closePath();
   }
 
+  keyControl() {
+    if (LEFT) {
+      this.angVel = -0.1;
+    }
+    if (RIGHT) {
+      this.angVel = 0.1;
+    }
+  }
+
+  reposition() {
+    this.angle += this.angVel;
+    this.angVel *= 0.99;
+  }
+
   wallUnit() {
     return this.end.subtr(this.start).unit();
   }
 }
 
-function keyControl(b) {
+function userInput() {
   canvas.addEventListener("keydown", (e) => {
     if (e.code === "ArrowLeft") {
       LEFT = true;
@@ -149,25 +217,6 @@ function keyControl(b) {
       DOWN = false;
     }
   });
-
-  if (LEFT) {
-    b.acc.x = -b.acceleration;
-  }
-  if (UP) {
-    b.acc.y = -b.acceleration;
-  }
-  if (RIGHT) {
-    b.acc.x = b.acceleration;
-  }
-  if (DOWN) {
-    b.acc.y = b.acceleration;
-  }
-  if (!LEFT && !RIGHT) {
-    b.acc.x = 0;
-  }
-  if (!UP && !DOWN) {
-    b.acc.y = 0;
-  }
 }
 
 function round(number, precision) {
@@ -177,6 +226,15 @@ function round(number, precision) {
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function rotMx(angle) {
+  let mx = new Matrix(2, 2);
+  mx.data[0][0] = Math.cos(angle);
+  mx.data[0][1] = -Math.sin(angle);
+  mx.data[1][0] = Math.sin(angle);
+  mx.data[1][1] = Math.cos(angle);
+  return mx;
 }
 
 function closestPointBW(b1, w1) {
@@ -252,10 +310,11 @@ function momentum_display() {
 
 function mainLoop(timestamp) {
   ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+  userInput();
   BALLZ.forEach((b, index) => {
     b.drawBall();
     if (b.player) {
-      keyControl(b);
+      b.keyControl();
     }
     WALLZ.forEach((w) => {
       if (coll_det_bw(BALLZ[index], w)) {
@@ -275,36 +334,13 @@ function mainLoop(timestamp) {
 
   WALLZ.forEach((w) => {
     w.drawWall();
+    w.keyControl();
+    w.reposition();
   });
 
   requestAnimationFrame(mainLoop);
 }
 
-for (let i = 0; i < 10; i++) {
-  let newBall = new Ball(
-    randInt(100, 700),
-    randInt(50, 600),
-    randInt(20, 50),
-    randInt(0, 10)
-  );
-  newBall.elasticity = randInt(0, 10) / 10;
-}
-let Wall2 = new Wall(300, 400, 550, 200);
-
-let edge1 = new Wall(0, 0, canvas.clientWidth, 0);
-let edge2 = new Wall(
-  canvas.clientWidth,
-  0,
-  canvas.clientWidth,
-  canvas.clientHeight
-);
-let edge3 = new Wall(
-  canvas.clientWidth,
-  canvas.clientHeight,
-  0,
-  canvas.clientHeight
-);
-let edge4 = new Wall(0, canvas.clientHeight, 0, 0);
-BALLZ[0].player = true;
+let Wall1 = new Wall(200, 200, 400, 200);
 
 requestAnimationFrame(mainLoop);
