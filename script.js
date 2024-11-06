@@ -3,6 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const BALLZ = [];
 const WALLZ = [];
+const CAPS = [];
 
 let LEFT, UP, RIGHT, DOWN;
 let friction = 0.05;
@@ -52,6 +53,10 @@ class Vector {
 
   static dot(v1, v2) {
     return v1.x * v2.x + v1.y * v2.y;
+  }
+
+  static cross(v1, v2) {
+    return v1.x * v2.y - v1.y * v2.x;
   }
 }
 
@@ -139,6 +144,47 @@ class Ball {
       this.acc.y = 0;
     }
   }
+}
+
+class Capsule {
+  constructor(x1, x2, y1, y2, r) {
+    this.start = new Vector(x1, y1);
+    this.end = new Vector(x2, y2);
+    this.r = r;
+    this.refDir = this.end.subtr(this.start).unit();
+    this.refAngle = Math.acos(Vector.dot(this.refDir, new Vector(1, 0)));
+    if (Vector.cross(this.refDir, new Vector(1, 0) > 0)) {
+      this.refAngle *= -1;
+    }
+    CAPS.push(this);
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(
+      this.start.x,
+      this.start.y,
+      this.r,
+      this.refAngle + Math.PI / 2,
+      this.refAngle + (3 * Math.PI) / 2
+    );
+    ctx.arc(
+      this.end.x,
+      this.end.y,
+      this.r,
+      this.refAngle - Math.PI / 2,
+      this.refAngle + Math.PI / 2
+    );
+    ctx.closePath();
+    ctx.strokeStyle = "black";
+    ctx.stroke();
+    ctx.fillStyle = "lightgreen";
+    ctx.fill();
+  }
+
+  keyControl() {}
+
+  reposition() {}
 }
 
 class Wall {
@@ -338,9 +384,15 @@ function mainLoop(timestamp) {
     w.reposition();
   });
 
+  CAPS.forEach((c) => {
+    c.draw();
+    c.keyControl();
+    c.reposition();
+  });
+
   requestAnimationFrame(mainLoop);
 }
 
-let Wall1 = new Wall(200, 200, 400, 200);
+let Caps1 = new Capsule(200, 400, 200, 400, 50);
 
 requestAnimationFrame(mainLoop);
