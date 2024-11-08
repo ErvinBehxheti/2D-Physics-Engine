@@ -147,13 +147,23 @@ class Ball {
 }
 
 class Capsule {
-  constructor(x1, x2, y1, y2, r) {
+  constructor(x1, y1, x2, y2, r) {
     this.start = new Vector(x1, y1);
     this.end = new Vector(x2, y2);
     this.r = r;
+    this.length = this.end.subtr(this.start).mag();
     this.refDir = this.end.subtr(this.start).unit();
-    this.refAngle = Math.acos(Vector.dot(this.refDir, new Vector(1, 0)));
-    if (Vector.cross(this.refDir, new Vector(1, 0) > 0)) {
+    this.dir = this.end.subtr(this.start).unit();
+    this.pos = this.start.add(this.end).mult(0.5);
+    this.vel = new Vector(0, 0);
+    this.acc = new Vector(0, 0);
+    this.acceleration = 1;
+    this.angVel = 0;
+    this.angle = 0;
+    this.refAngle = Math.acos(
+      Vector.dot(this.end.subtr(this.start).unit(), new Vector(1, 0))
+    );
+    if (Vector.cross(this.end.subtr(this.start).unit(), new Vector(1, 0)) > 0) {
       this.refAngle *= -1;
     }
     CAPS.push(this);
@@ -165,15 +175,15 @@ class Capsule {
       this.start.x,
       this.start.y,
       this.r,
-      this.refAngle + Math.PI / 2,
-      this.refAngle + (3 * Math.PI) / 2
+      this.refAngle + this.angle + Math.PI / 2,
+      this.refAngle + this.angle + (3 * Math.PI) / 2
     );
     ctx.arc(
       this.end.x,
       this.end.y,
       this.r,
-      this.refAngle - Math.PI / 2,
-      this.refAngle + Math.PI / 2
+      this.refAngle + this.angle - Math.PI / 2,
+      this.refAngle + this.angle + Math.PI / 2
     );
     ctx.closePath();
     ctx.strokeStyle = "black";
@@ -182,9 +192,36 @@ class Capsule {
     ctx.fill();
   }
 
-  keyControl() {}
+  keyControl() {
+    if (UP) {
+      this.acc = this.dir.mult(-this.acceleration);
+    }
+    if (DOWN) {
+      this.acc = this.dir.mult(this.acceleration);
+    }
+    if (LEFT) {
+      this.angVel = -0.1;
+    }
+    if (RIGHT) {
+      this.angVel = 0.1;
+    }
+    if (!UP && !DOWN) {
+      this.acc = new Vector(0, 0);
+    }
+  }
 
-  reposition() {}
+  reposition() {
+    this.acc = this.acc.unit().mult(this.acceleration);
+    this.vel = this.vel.add(this.acc);
+    this.vel = this.vel.mult(1 - friction);
+    this.pos = this.pos.add(this.vel);
+    this.angle += this.angVel;
+    this.angVel *= 0.95;
+    let rotMat = rotMx(this.angle);
+    this.dir = rotMat.multiplyVec(this.refDir);
+    this.start = this.pos.add(this.dir.mult(-this.length / 2));
+    this.end = this.pos.add(this.dir.mult(this.length / 2));
+  }
 }
 
 class Wall {
@@ -393,6 +430,6 @@ function mainLoop(timestamp) {
   requestAnimationFrame(mainLoop);
 }
 
-let Caps1 = new Capsule(200, 400, 200, 400, 50);
+let Caps1 = new Capsule(200, 200, 300, 300, 40);
 
 requestAnimationFrame(mainLoop);
