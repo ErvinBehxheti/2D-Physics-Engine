@@ -160,6 +160,7 @@ class Capsule {
     this.acceleration = 1;
     this.angVel = 0;
     this.angle = 0;
+    this.player = false;
     this.refAngle = Math.acos(
       Vector.dot(this.end.subtr(this.start).unit(), new Vector(1, 0))
     );
@@ -186,10 +187,12 @@ class Capsule {
       this.refAngle + this.angle + Math.PI / 2
     );
     ctx.closePath();
+    ctx.moveTo(this.start.x, this.start.y);
+    ctx.lineTo(this.end.x, this.end.y);
     ctx.strokeStyle = "black";
     ctx.stroke();
-    ctx.fillStyle = "lightgreen";
-    ctx.fill();
+    // ctx.fillStyle = "lightgreen";
+    // ctx.fill();
   }
 
   keyControl() {
@@ -230,6 +233,7 @@ class Wall {
     this.end = new Vector(x2, y2);
     this.center = this.start.add(this.end).mult(0.5);
     this.length = this.end.subtr(this.start).mag();
+    this.dir = this.end.subtr(this.start).unit();
     this.refStart = new Vector(x1, y1);
     this.refEnd = new Vector(x2, y2);
     this.refUnit = this.end.subtr(this.start).unit();
@@ -263,10 +267,6 @@ class Wall {
   reposition() {
     this.angle += this.angVel;
     this.angVel *= 0.99;
-  }
-
-  wallUnit() {
-    return this.end.subtr(this.start).unit();
   }
 }
 
@@ -320,20 +320,52 @@ function rotMx(angle) {
   return mx;
 }
 
-function closestPointBW(b1, w1) {
-  let ballToWallStart = w1.start.subtr(b1.pos);
-  if (Vector.dot(w1.wallUnit(), ballToWallStart) > 0) {
+function closestPointOnLS(p, w1) {
+  let ballToWallStart = w1.start.subtr(p);
+  if (Vector.dot(w1.dir, ballToWallStart) > 0) {
     return w1.start;
   }
 
-  let wallEndToBall = b1.pos.subtr(w1.end);
-  if (Vector.dot(w1.wallUnit(), wallEndToBall) > 0) {
+  let wallEndToBall = p.subtr(w1.end);
+  if (Vector.dot(w1.dir, wallEndToBall) > 0) {
     return w1.end;
   }
 
-  let closestDist = Vector.dot(w1.wallUnit(), ballToWallStart);
-  let closestVect = w1.wallUnit().mult(closestDist);
+  let closestDist = Vector.dot(w1.dir, ballToWallStart);
+  let closestVect = w1.dir.mult(closestDist);
   return w1.start.subtr(closestVect);
+}
+
+function closestPointBetweenLS(c1, c2) {
+  let shortedDist = closestPointOnLS(c1.start, c2).subtr(c1.start).mag();
+  let closestPoints = [c1.start, closestPointOnLS(c1.start, c2)];
+  if (closestPointOnLS(c1.end, c2).subtr(c1.end).mag() < shortedDist) {
+    shortedDist = closestPointOnLS(c1.end, c2).subtr(c1.end).mag();
+    closestPoints = [c1.end, closestPointOnLS(c1.end, c2)];
+  }
+  if (closestPointOnLS(c2.start, c1).subtr(c2.start).mag() < shortedDist) {
+    shortedDist = closestPointOnLS(c2.start, c1).subtr(c2.start).mag();
+    closestPoints = [closestPointOnLS(c2.start, c1), c2.start];
+  }
+  if (closestPointOnLS(c2.end, c1).subtr(c2.end).mag() < shortedDist) {
+    shortedDist = closestPointOnLS(c2.end, c1).subtr(c2.end).mag();
+    closestPoints = [closestPointOnLS(c2.end, c1), c2.end];
+  }
+  ctx.strokeStyle = "red";
+  ctx.beginPath();
+  ctx.moveTo(closestPoints[0].x, closestPoints[0].y);
+  ctx.lineTo(closestPoints[1].x, closestPoints[1].y);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(closestPoints[0].x, closestPoints[0].y, c1.r, 0 , 2 * Math.PI);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(closestPoints[1].x, closestPoints[1].y, c2.r, 0, 2 * Math.PI)
+  ctx.closePath();
+  ctx.stroke()
+  return closestPoints
 }
 
 function coll_det_bb(b1, b2) {
@@ -345,7 +377,7 @@ function coll_det_bb(b1, b2) {
 }
 
 function coll_det_bw(b1, w1) {
-  let ballToClosest = closestPointBW(b1, w1).subtr(b1.pos);
+  let ballToClosest = closestPointOnLS(b1.pos, w1).subtr(b1.pos);
   if (ballToClosest.mag() <= b1.r) {
     return true;
   }
@@ -360,7 +392,7 @@ function pen_res_bb(b1, b2) {
 }
 
 function pen_res_bw(b1, w1) {
-  let penVect = b1.pos.subtr(closestPointBW(b1, w1));
+  let penVect = b1.pos.subtr(closestPointOnLS(b1.pos, w1));
   b1.pos = b1.pos.add(penVect.unit().mult(b1.r - penVect.mag()));
 }
 
@@ -379,7 +411,7 @@ function coll_res_bb(b1, b2) {
 }
 
 function coll_res_bw(b1, w1) {
-  let normal = b1.pos.subtr(closestPointBW(b1, w1)).unit();
+  let normal = b1.pos.subtr(closestPointOnLS(b1.pos, w1)).unit();
   let sepVel = Vector.dot(b1.vel, normal);
   let new_sepVel = -sepVel * b1.elasticity;
   let vsep_diff = sepVel - new_sepVel;
@@ -423,13 +455,17 @@ function mainLoop(timestamp) {
 
   CAPS.forEach((c) => {
     c.draw();
-    c.keyControl();
+    if (c.player) {
+      c.keyControl();
+    }
     c.reposition();
   });
-
+  closestPointBetweenLS(Caps1, Caps2)
   requestAnimationFrame(mainLoop);
 }
 
-let Caps1 = new Capsule(200, 200, 300, 300, 40);
+let Caps1 = new Capsule(600, 400, 500, 300, 40);
+Caps1.player = true;
+let Caps2 = new Capsule(150, 50, 150, 300, 40);
 
 requestAnimationFrame(mainLoop);
